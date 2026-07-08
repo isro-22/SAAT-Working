@@ -1,17 +1,43 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+
 import streamlit as st
 
-from apps.chemicals_db import render_chemicals_db
-from apps.clean_database import render_clean_database
-from apps.bom_breakdown import render_bom_breakdown
-from apps.formulation_sheet import render_formulation_sheet
+from apps._app_loader import load_and_run_app
 
 
-PAGES = {
-    "00 Chemicals DB": render_chemicals_db,
-    "01 Clean Database": render_clean_database,
-    "02 BOM Breakdown": render_bom_breakdown,
-    "03 Formulation Sheet Creation": render_formulation_sheet,
-}
+ROOT = Path(__file__).resolve().parent
+
+
+@dataclass(frozen=True)
+class AppPage:
+    title: str
+    relative_path: str
+
+
+def discover_app_pages() -> list[AppPage]:
+    pages: list[AppPage] = []
+    for folder in sorted(path for path in ROOT.iterdir() if path.is_dir()):
+        if folder.name.startswith(".") or folder.name in {"apps", "__pycache__"}:
+            continue
+
+        candidates = [folder / "app.py", folder / "app" / "main.py"]
+        app_file = next((candidate for candidate in candidates if candidate.exists()), None)
+        if app_file is None:
+            continue
+
+        pages.append(
+            AppPage(
+                title=folder.name,
+                relative_path=app_file.relative_to(ROOT).as_posix(),
+            )
+        )
+    return pages
+
+
+PAGES = discover_app_pages()
 
 
 def main() -> None:
@@ -76,9 +102,16 @@ def main() -> None:
     with st.sidebar:
         st.title("SAAT Streamlit")
         st.caption("Struktur multipage dengan index.py dan folder apps/")
-        selection = st.radio("Pilih aplikasi", list(PAGES.keys()))
+        if not PAGES:
+            st.warning("Tidak ada aplikasi yang ditemukan.")
+            return
+        selection = st.radio(
+            "Pilih aplikasi",
+            PAGES,
+            format_func=lambda page: page.title,
+        )
         st.markdown("---")
-        st.write("Tambahkan modul baru ke folder apps/ lalu daftarkan di sini.")
+        st.write("Aplikasi dibaca otomatis dari folder yang memiliki app.py atau app/main.py.")
 
     st.markdown(
         """
@@ -93,14 +126,17 @@ def main() -> None:
     st.markdown(
         f"""
         <div class="card">
-            <strong>{selection}</strong><br>
-            Pilih modul di sidebar untuk melihat detail aplikasi dan tombol aksi.
+            <strong>{selection.title}</strong><br>
+            Path: <code>{selection.relative_path}</code>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    PAGES[selection]()
+    try:
+        load_and_run_app(selection.relative_path)
+    except Exception as exc:
+        st.error(f"Gagal memuat {selection.title}: {exc}")
 
 
 if __name__ == "__main__":
