@@ -4,3 +4,5 @@ __pycache__/
 .DS_Store
 *.log
 .streamlit/secrets.toml
+
+00 Chemicals DB/data/materials_final.json
