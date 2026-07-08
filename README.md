@@ -47,6 +47,16 @@ SAAT Working/
 
 Loader menambahkan path lokal app ke `sys.path`, menonaktifkan pemanggilan `st.set_page_config()` dari sub-app, dan membersihkan cache module lokal agar package dengan nama sama seperti `src` tidak bentrok antar app.
 
+## Data Chemicals DB
+
+File lengkap lokal `00 Chemicals DB/data/materials_final.json` berukuran besar dan tidak dipush ke GitHub. Untuk deployment, repo menyimpan versi kompresi:
+
+```text
+00 Chemicals DB/data/materials_final.json.gz
+```
+
+`00 Chemicals DB` akan membaca JSON asli jika tersedia lokal, lalu fallback ke file `.json.gz` saat berjalan di Streamlit Cloud.
+
 ## Jalankan Lokal
 
 ```bash

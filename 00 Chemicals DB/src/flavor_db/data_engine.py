@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import gzip
 import re
 from collections import Counter, defaultdict
 from functools import lru_cache
@@ -12,6 +13,7 @@ from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_FILE = PROJECT_ROOT / "data" / "materials_final.json"
+COMPRESSED_DATA_FILE = DATA_FILE.with_suffix(".json.gz")
 AINSIGHTS_DISCLOSURE_MARKER = "about flavscents ainsights (disclosure)"
 AINSIGHTS_DISCLOSURE_END_PATTERN = re.compile(r"Generated GMT \(p\)", flags=re.IGNORECASE)
 DESCRIPTOR_STOP_WORDS = {
@@ -132,8 +134,16 @@ def _text_for_fields(item: dict[str, Any], fields: tuple[str, ...]) -> str:
 
 @lru_cache(maxsize=1)
 def load_materials() -> tuple[dict[str, Any], ...]:
-    with DATA_FILE.open(encoding="utf-8") as file:
-        data = json.load(file)
+    if DATA_FILE.exists():
+        with DATA_FILE.open(encoding="utf-8") as file:
+            data = json.load(file)
+    elif COMPRESSED_DATA_FILE.exists():
+        with gzip.open(COMPRESSED_DATA_FILE, mode="rt", encoding="utf-8") as file:
+            data = json.load(file)
+    else:
+        raise FileNotFoundError(
+            f"Material data file not found: {DATA_FILE} or {COMPRESSED_DATA_FILE}"
+        )
 
     if not isinstance(data, list):
         raise ValueError("materials_final.json must contain a list of material objects.")
