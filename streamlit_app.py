@@ -25,9 +25,7 @@ APP_DESCRIPTIONS = {
     "03 Formulation Sheet Creation": "Pembuatan sheet formulasi dari template.",
 }
 
-APP_QUERY_HINTS = {
-    "00 Chemicals DB": {"material", "add_shelf", "q", "fields", "page", "view"},
-}
+CHEMICALS_DB_VIEWS = {"analytics", "shelf", "formulation", "search"}
 
 
 def discover_app_pages() -> list[AppPage]:
@@ -68,9 +66,18 @@ def back_to_home() -> None:
 def infer_app_from_query_params(pages: list[AppPage]) -> str | None:
     query_keys = set(st.query_params.keys())
     available_titles = {page.title for page in pages}
-    for app_title, hints in APP_QUERY_HINTS.items():
-        if app_title in available_titles and query_keys & hints:
-            return app_title
+
+    if "02 BOM Breakdown" in available_titles and (
+        st.query_params.get("view") == "cf_detail" or "cf" in query_keys
+    ):
+        return "02 BOM Breakdown"
+
+    if "00 Chemicals DB" in available_titles and (
+        query_keys & {"material", "add_shelf", "q", "fields"}
+        or st.query_params.get("view") in CHEMICALS_DB_VIEWS
+    ):
+        return "00 Chemicals DB"
+
     return None
 
 
