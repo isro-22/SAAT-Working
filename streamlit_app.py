@@ -114,11 +114,12 @@ st.set_page_config(page_title="SAAT Working", layout="wide")
 
 pages = discover_app_pages()
 page_by_title = {page.title: page for page in pages}
+query_app = infer_app_from_query_params(pages)
 
 if "selected_app" not in st.session_state:
-    st.session_state.selected_app = infer_app_from_query_params(pages)
-elif st.session_state.selected_app is None:
-    st.session_state.selected_app = infer_app_from_query_params(pages)
+    st.session_state.selected_app = query_app
+elif query_app is not None:
+    st.session_state.selected_app = query_app
 
 if not pages:
     st.title("SAAT Working")
