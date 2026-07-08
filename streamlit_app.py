@@ -25,6 +25,10 @@ APP_DESCRIPTIONS = {
     "03 Formulation Sheet Creation": "Pembuatan sheet formulasi dari template.",
 }
 
+APP_QUERY_HINTS = {
+    "00 Chemicals DB": {"material", "add_shelf", "q", "fields", "page", "view"},
+}
+
 
 def discover_app_pages() -> list[AppPage]:
     pages: list[AppPage] = []
@@ -57,7 +61,17 @@ def open_app(app_title: str) -> None:
 
 def back_to_home() -> None:
     st.session_state.selected_app = None
+    st.query_params.clear()
     st.rerun()
+
+
+def infer_app_from_query_params(pages: list[AppPage]) -> str | None:
+    query_keys = set(st.query_params.keys())
+    available_titles = {page.title for page in pages}
+    for app_title, hints in APP_QUERY_HINTS.items():
+        if app_title in available_titles and query_keys & hints:
+            return app_title
+    return None
 
 
 def render_launcher(pages: list[AppPage]) -> None:
@@ -95,7 +109,9 @@ pages = discover_app_pages()
 page_by_title = {page.title: page for page in pages}
 
 if "selected_app" not in st.session_state:
-    st.session_state.selected_app = None
+    st.session_state.selected_app = infer_app_from_query_params(pages)
+elif st.session_state.selected_app is None:
+    st.session_state.selected_app = infer_app_from_query_params(pages)
 
 if not pages:
     st.title("SAAT Working")
