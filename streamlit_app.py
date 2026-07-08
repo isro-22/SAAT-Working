@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 import streamlit as st
 
@@ -16,6 +15,15 @@ ROOT = Path(__file__).resolve().parent
 class AppPage:
     title: str
     relative_path: str
+    description: str
+
+
+APP_DESCRIPTIONS = {
+    "00 Chemicals DB": "Pencarian dan manajemen database bahan kimia.",
+    "01 Clean Database": "Pembersihan, validasi, dan penataan database.",
+    "02 BOM Breakdown": "Analisis breakdown Bill of Materials dan struktur produk.",
+    "03 Formulation Sheet Creation": "Pembuatan sheet formulasi dari template.",
+}
 
 
 def discover_app_pages() -> list[AppPage]:
@@ -33,32 +41,70 @@ def discover_app_pages() -> list[AppPage]:
             AppPage(
                 title=folder.name,
                 relative_path=app_file.relative_to(ROOT).as_posix(),
+                description=APP_DESCRIPTIONS.get(
+                    folder.name,
+                    "Aplikasi Streamlit dalam workspace SAAT Working.",
+                ),
             )
         )
     return pages
 
 
-def page_runner(relative_path: str) -> Callable[[], None]:
-    def run() -> None:
-        load_and_run_app(relative_path)
+def open_app(app_title: str) -> None:
+    st.session_state.selected_app = app_title
+    st.rerun()
 
-    return run
+
+def back_to_home() -> None:
+    st.session_state.selected_app = None
+    st.rerun()
+
+
+def render_launcher(pages: list[AppPage]) -> None:
+    st.title("SAAT Working")
+    st.caption("Pilih aplikasi yang ingin dijalankan dari satu deployment Streamlit.")
+
+    columns = st.columns(2)
+    for index, page in enumerate(pages):
+        with columns[index % 2]:
+            with st.container(border=True):
+                st.subheader(page.title)
+                st.write(page.description)
+                st.caption(page.relative_path)
+                if st.button(f"Buka {page.title}", key=f"open_{page.title}", use_container_width=True):
+                    open_app(page.title)
+
+
+def render_selected_app(page: AppPage) -> None:
+    col_back, col_title = st.columns([1, 6])
+    with col_back:
+        if st.button("Kembali", use_container_width=True):
+            back_to_home()
+    with col_title:
+        st.subheader(page.title)
+
+    try:
+        load_and_run_app(page.relative_path)
+    except Exception as exc:
+        st.error(f"Gagal memuat {page.title}: {exc}")
 
 
 st.set_page_config(page_title="SAAT Working", layout="wide")
 
 pages = discover_app_pages()
+page_by_title = {page.title: page for page in pages}
+
+if "selected_app" not in st.session_state:
+    st.session_state.selected_app = None
 
 if not pages:
     st.title("SAAT Working")
     st.warning("Tidak ada aplikasi yang ditemukan.")
+elif st.session_state.selected_app is None:
+    render_launcher(pages)
 else:
-    navigation = {
-        "Menu Aplikasi": [
-            st.Page(page_runner(page.relative_path), title=page.title)
-            for page in pages
-        ]
-    }
-
-    selected_page = st.navigation(navigation)
-    selected_page.run()
+    selected_page = page_by_title.get(st.session_state.selected_app)
+    if selected_page is None:
+        back_to_home()
+    else:
+        render_selected_app(selected_page)

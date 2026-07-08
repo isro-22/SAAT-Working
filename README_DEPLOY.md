@@ -17,6 +17,6 @@
 6. Klik Deploy.
 
 ## Catatan
-- `streamlit_app.py` adalah router yang memuat setiap aplikasi dalam satu deployment.
+- `streamlit_app.py` adalah launcher yang menampilkan pilihan aplikasi lalu memuat aplikasi terpilih dalam satu deployment.
 - Aplikasi lain tidak dijalankan sebagai proses terpisah, sehingga Streamlit Cloud dapat menampilkan semua modul dari satu deployment.
 - Jika ada error dependensi, pastikan `requirements.txt` mencakup semua paket yang digunakan oleh setiap sub-aplikasi.
