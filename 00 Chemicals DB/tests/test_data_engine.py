@@ -1,4 +1,8 @@
+import gzip
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from src.flavor_db.data_engine import (
     analytics_summary,
@@ -10,6 +14,7 @@ from src.flavor_db.data_engine import (
     get_material,
     load_materials,
     material_id,
+    read_json_records,
     search_materials,
     similar_materials,
     summarize_material,
@@ -22,6 +27,18 @@ class DataEngineTest(unittest.TestCase):
         self.assertGreater(len(materials), 1000)
         self.assertIn("name", materials[0])
         self.assertIn("material_key", materials[0])
+
+    def test_hybrid_reader_loads_json_and_gzip(self):
+        records = [{"name": "alpha"}, {"name": "beta"}, "ignored"]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            json_path = Path(tmpdir) / "materials.json"
+            gzip_path = Path(tmpdir) / "materials.json.gz"
+            json_path.write_text(json.dumps(records), encoding="utf-8")
+            with gzip.open(gzip_path, mode="wt", encoding="utf-8") as file:
+                json.dump(records, file)
+
+            self.assertEqual(read_json_records(json_path), records[:2])
+            self.assertEqual(read_json_records(gzip_path), records[:2])
 
     def test_partial_cas_search(self):
         results = search_materials("111-70", ["CAS"], limit=10)

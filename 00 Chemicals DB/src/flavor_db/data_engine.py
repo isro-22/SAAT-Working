@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import json
 import gzip
+import json
+import os
 import re
 from collections import Counter, defaultdict
 from functools import lru_cache
@@ -14,6 +15,7 @@ from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_FILE = PROJECT_ROOT / "data" / "materials_final.json"
 COMPRESSED_DATA_FILE = DATA_FILE.with_suffix(".json.gz")
+SUPPORTED_DATA_SUFFIXES = (".json", ".json.gz")
 AINSIGHTS_DISCLOSURE_MARKER = "about flavscents ainsights (disclosure)"
 AINSIGHTS_DISCLOSURE_END_PATTERN = re.compile(r"Generated GMT \(p\)", flags=re.IGNORECASE)
 DESCRIPTOR_STOP_WORDS = {
@@ -132,23 +134,40 @@ def _text_for_fields(item: dict[str, Any], fields: tuple[str, ...]) -> str:
     return " ".join(clean_value(item.get(field), "") for field in fields).lower()
 
 
-@lru_cache(maxsize=1)
-def load_materials() -> tuple[dict[str, Any], ...]:
-    if DATA_FILE.exists():
-        with DATA_FILE.open(encoding="utf-8") as file:
-            data = json.load(file)
-    elif COMPRESSED_DATA_FILE.exists():
-        with gzip.open(COMPRESSED_DATA_FILE, mode="rt", encoding="utf-8") as file:
-            data = json.load(file)
-    else:
-        raise FileNotFoundError(
-            f"Material data file not found: {DATA_FILE} or {COMPRESSED_DATA_FILE}"
-        )
+def _data_candidates() -> tuple[Path, ...]:
+    configured = os.environ.get("FLAVOR_DB_DATA_FILE")
+    if configured:
+        return (Path(configured).expanduser(),)
+    return (DATA_FILE, COMPRESSED_DATA_FILE)
+
+
+def resolve_material_data_file() -> Path:
+    for candidate in _data_candidates():
+        if candidate.exists():
+            return candidate
+    searched = " or ".join(str(path) for path in _data_candidates())
+    raise FileNotFoundError(f"Material data file not found: {searched}")
+
+
+def read_json_records(path: str | Path) -> list[dict[str, Any]]:
+    data_path = Path(path)
+    path_text = str(data_path)
+    if not path_text.endswith(SUPPORTED_DATA_SUFFIXES):
+        raise ValueError("Material data file must use .json or .json.gz.")
+
+    opener = gzip.open if path_text.endswith(".gz") else open
+    with opener(data_path, mode="rt", encoding="utf-8") as file:
+        data = json.load(file)
 
     if not isinstance(data, list):
-        raise ValueError("materials_final.json must contain a list of material objects.")
+        raise ValueError(f"{data_path.name} must contain a list of material objects.")
 
-    return tuple(item for item in data if isinstance(item, dict))
+    return [item for item in data if isinstance(item, dict)]
+
+
+@lru_cache(maxsize=1)
+def load_materials() -> tuple[dict[str, Any], ...]:
+    return tuple(read_json_records(resolve_material_data_file()))
 
 
 @lru_cache(maxsize=1)
@@ -169,17 +188,32 @@ def _search_index() -> tuple[dict[str, str], ...]:
     return tuple(index)
 
 
-def get_all_materials(limit: int | None = None) -> list[dict[str, Any]]:
-    materials = list(load_materials())
-    featured = sorted(
-        materials,
-        key=lambda item: (
-            clean_value(item.get("fema")) == "N/A",
-            clean_value(item.get("odor")) == "N/A" and clean_value(item.get("flavor")) == "N/A",
-            clean_value(item.get("name")).lower(),
-        ),
+@lru_cache(maxsize=1)
+def _sorted_materials() -> tuple[dict[str, Any], ...]:
+    return tuple(
+        sorted(
+            load_materials(),
+            key=lambda item: (
+                clean_value(item.get("fema")) == "N/A",
+                clean_value(item.get("odor")) == "N/A" and clean_value(item.get("flavor")) == "N/A",
+                clean_value(item.get("name")).lower(),
+            ),
+        )
     )
-    return featured[:limit] if limit else featured
+
+@lru_cache(maxsize=1)
+def _material_lookup() -> dict[str, dict[str, Any]]:
+    lookup: dict[str, dict[str, Any]] = {}
+    for item in load_materials():
+        for key in (item.get("material_key"), item.get("cas"), item.get("name")):
+            normalized = clean_value(key, "").lower()
+            if normalized and normalized not in lookup:
+                lookup[normalized] = item
+    return lookup
+
+def get_all_materials(limit: int | None = None) -> list[dict[str, Any]]:
+    materials = list(_sorted_materials())
+    return materials[:limit] if limit else materials
 
 
 def search_materials(
@@ -408,16 +442,7 @@ def get_material(identifier: str) -> dict[str, Any] | None:
     identifier = clean_value(identifier, "").lower()
     if not identifier:
         return None
-
-    for item in load_materials():
-        candidates = (
-            item.get("material_key"),
-            item.get("cas"),
-            item.get("name"),
-        )
-        if any(clean_value(candidate, "").lower() == identifier for candidate in candidates):
-            return item
-    return None
+    return _material_lookup().get(identifier)
 
 
 def summarize_material(item: dict[str, Any]) -> dict[str, str]:

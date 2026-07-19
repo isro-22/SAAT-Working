@@ -19,7 +19,10 @@ Website database flavor/chemical materials berbasis Streamlit dengan database JS
 - Halaman `My Shelf` memiliki `Compare Materials` untuk membandingkan hingga 4 material tersimpan dalam satu tabel.
 - Menu `Formulation Sheet` sudah disiapkan sebagai placeholder `Coming Soon / Under Construction` untuk fase berikutnya.
 - UI Neo-Brutalism: border hitam tebal, shadow hitam tegas, aksen kuning, dan sudut tajam.
-- Data engine memakai cache memory agar JSON besar tidak dibaca ulang di setiap rerun Streamlit.
+- Mode hybrid data reader: aplikasi otomatis membaca `materials_final.json` atau `materials_final.json.gz`.
+- Data source bisa dioverride lewat environment variable `FLAVOR_DB_DATA_FILE`.
+- Data engine memakai cache memory agar JSON besar, search index, sorted list, analytics, dan lookup detail tidak dihitung ulang di setiap rerun Streamlit.
+- Optimasi mengikuti pendekatan `DietrichGebert/ponytail`: gunakan stdlib dulu, hilangkan duplikasi loader, dan tambah abstraksi hanya di boundary data yang memang sering dipakai.
 
 ## Struktur Folder
 
@@ -27,7 +30,7 @@ Website database flavor/chemical materials berbasis Streamlit dengan database JS
 .
 ├── app.py                         # Entry point Streamlit
 ├── data/
-│   └── materials_final.json       # Database material
+│   └── materials_final.json(.gz)  # Database material; JSON biasa atau gzip
 ├── docs/
 │   └── assets/                    # Referensi desain dan screenshot
 ├── src/
@@ -36,6 +39,8 @@ Website database flavor/chemical materials berbasis Streamlit dengan database JS
 │       └── data_engine.py         # Load, search, retrieval, mapping data
 ├── tests/
 │   └── test_data_engine.py        # Unit test data engine
+├── algorithm.md                   # Detail algoritma loader, search, lookup, analytics
+├── architecture.md                # Boundary modul dan runtime architecture
 ├── requirements.txt
 └── README.md
 ```
@@ -60,6 +65,12 @@ Buka:
 http://localhost:8501
 ```
 
+Opsional, gunakan file data lain:
+
+```bash
+FLAVOR_DB_DATA_FILE=/path/to/materials_final.json.gz python3 -m streamlit run app.py
+```
+
 ## Testing
 
 Jalankan unit test:
@@ -76,7 +87,7 @@ python3 -m py_compile app.py src/flavor_db/app.py src/flavor_db/data_engine.py t
 
 ## Catatan Data
 
-`materials_final.json` berisi 26.610 material dan banyak field tambahan yang tidak selalu konsisten antar material. Field inti yang dipakai aplikasi:
+`materials_final.json` atau `materials_final.json.gz` berisi 26.610 material dan banyak field tambahan yang tidak selalu konsisten antar material. Field inti yang dipakai aplikasi:
 
 - Identifier: `name`, `description`, `synonyms`, `cas`, `fema`, `einecs`, `jecfa_food_flavoring`, `jecfa_food_additive`, `dg_sante_food_flavourings`, `dg_sante_food_contact_materials`, `molecular_formula`.
 - Properties: `molecular_weight`, `boiling_point`, `melting_point`, `soluble_in`, `flash_point`, `logp`, `appearance`.
@@ -84,3 +95,8 @@ python3 -m py_compile app.py src/flavor_db/app.py src/flavor_db/data_engine.py t
 - Insight: `ainsights_*`, regulation-related fields, safety-related fields.
 
 Semua akses data melewati helper defensif agar nilai kosong, `N/A`, field hilang, list, atau dict tidak menyebabkan `KeyError`.
+
+## Dokumentasi Teknis
+
+- [algorithm.md](algorithm.md) menjelaskan algoritma hybrid loader, search scoring, lookup detail, similar materials, dan analytics.
+- [architecture.md](architecture.md) menjelaskan flow runtime Streamlit, data boundary, cache, dan pendekatan `ponytail`.
